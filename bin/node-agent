@@ -18,40 +18,42 @@
 
 'use strict';
 
-var path      = require('path');
-var util      = require('util');
-var fs        = require('fs');
+var path = require('path');
+var util = require('util');
+var fs = require('fs');
 
-var chalk     = require('chalk');
+//终端样式库
+var chalk = require('chalk');
+//cli指令库
 var commander = require('commander');
-var pkg       = require('../package.json');
+var pkg = require('../package.json');
 
 var constants = require('../lib/constants');
-var convert   = require('../lib/util/convert');
-var CLI       = require('../lib/CLI');
+var convert = require('../lib/util/convert');
+var CLI = require('../lib/CLI');
 
 var TarsConfigure = require('@tars/utils').Config;
 
-var split = function(val) {
+var split = function (val) {
 	return val.split(' ');
 };
 
-var jsonParse = function(val) {
+var jsonParse = function (val) {
 	try {
 		return JSON.parse(val);
-	} catch(e) {
+	} catch (e) {
 		return '';
 	}
 };
 
-var aliveParse = function(val) {
+var aliveParse = function (val) {
 	if (val === 'off') {
 		return 0;
 	}
 	return parseInt(val);
 };
 
-var instancesParse = function(val) {
+var instancesParse = function (val) {
 	if (val === 'max') {
 		return -1;
 	}
@@ -68,7 +70,7 @@ var instancesParse = function(val) {
 	}
 };
 
-var toBoolean = function(val) {
+var toBoolean = function (val) {
 	if (typeof val === 'string') {
 		return val === 'on';
 	} else {
@@ -76,106 +78,126 @@ var toBoolean = function(val) {
 	}
 };
 
-var existsSync = function(path) {
+var existsSync = function (path) {
 	try {
 		fs.statSync(path);
-		return true; 
-	} catch (e) { 
-		return false; 
+		return true;
+	} catch (e) {
+		return false;
 	}
 };
 
-var parseConfig = function(script, file) {
+var parseConfig = function (script, file) {
 	var TarsConfig = new TarsConfigure(),
 		opts = {
-			config : file
+			config: file
 		}, serverObj;
 
 	TarsConfig.parseFile(file);
-
+	//解析模板文件（这里实际上默认只用到<server>配置节中的内容）
 	serverObj = TarsConfig.get('tars.application', {});
-
-	['run-as-user',
-	'run-as-group',
-	{
-		org : 'asyncthread',
-		dest : 'instances',
-		coercion : instancesParse,
-		domain : 'client'
-	}, {
-		org : 'instances',
-		coercion : instancesParse
-	}, {
-		org : 'script-args',
-		coercion : split
-	}, {
-		org : 'node-args',
-		coercion : split
-	}, {
-		org : 'max-memory-restart',
-		coercion : parseInt
-	}, {
-		org : 'deactivating-timeout',
-		dest : 'graceful-shutdown',
-		coercion : parseInt
-	}, {
-		org : 'exception-max',
-		coercion : parseInt
-	}, {
-		org : 'exception-time',
-		coercion : parseInt
-	}, {
-		org : 'keepalive-time',
-		coercion : aliveParse
-	}, {
-		org : 'logpath',
-		dest : 'log'
-	}, {
-		org : 'log-files',
-		dest : 'applog-max-files',
-		coercion : parseInt
-	}, {
-		org : 'logsize',
-		dest : 'applog-max-size',
-		coercion : convert.friendlyformat
-	}, {
-		org : 'logLevel',
-		dest : 'applog-level'
-	}, {
-		org : 'node',
-		dest : 'tars-node'
-	}, {
-		org : 'local',
-		dest : 'tars-local'
-	}, {
-		org : 'tars-monitor',
-		coercion : toBoolean
-	}, {
-		org : 'tars-monitor-http-threshold',
-		coercion : aliveParse
-	}, {
-		org : 'tars-monitor-http-seppath',
-		coercion : toBoolean
-	}, {
-		org : 'tars-monitor-http-socketerr',
-		coercion : toBoolean
-	}, {
-		org : 'long-stack',
-		coercion : toBoolean
-	}, {
-		org : 'long-stack-filter-usercode',
-		coercion : toBoolean
-	}].forEach(function(item) {
-		var value = (serverObj[item.domain || 'server'] || {})[item.org || item];
-	 	if (value) {
-	 		opts[convert.camelcase(item.dest || item.org || item)] = item.coercion ? item.coercion(value) : value;
-	 	}
-	 });
-
-	opts['name'] = TarsConfig.get('tars.application.server.app', constants.TARS_DEFAULT_APP) + '.' + TarsConfig.get('tars.application.server.server', path.basename(script, path.extname(script)));
+	//解析需要的配置字段 org:配置节名 ，dest：返回的options中的最终属性名（都是驼峰写法）
+	//这里要注意的是，aliveParse只判断on，toBoolean只判断off
+	//TODO 这里不支持 env 从私有模板设置？
+	[
+		'run-as-user',
+		'run-as-group',
+		//异步线程数
+		{
+			org: 'asyncthread',
+			dest: 'instances',
+			coercion: instancesParse,
+			domain: 'client'
+		}, {
+			org: 'instances',
+			coercion: instancesParse
+		}, {
+			org: 'script-args',
+			coercion: split
+		}, {
+			org: 'node-args',
+			coercion: split
+		}, {
+			org: 'max-memory-restart',
+			coercion: parseInt
+		}, {
+			org: 'deactivating-timeout',
+			dest: 'graceful-shutdown',
+			coercion: parseInt
+		}, {
+			org: 'exception-max',
+			coercion: parseInt
+		}, {
+			org: 'exception-time',
+			coercion: parseInt
+		}, {
+			org: 'keepalive-time',
+			coercion: aliveParse
+		}, {
+			org: 'logpath',
+			dest: 'log'
+		}, {
+			org: 'log-files',
+			dest: 'applog-max-files',
+			coercion: parseInt
+		}, {
+			org: 'logsize',
+			dest: 'applog-max-size',
+			coercion: convert.friendlyformat
+		}, {
+			org: 'logLevel',
+			dest: 'applog-level'
+		}, {
+			org: 'node',
+			dest: 'tars-node'
+		}, {
+			org: 'local',
+			dest: 'tars-local'
+		}, {
+			org: 'tars-monitor',
+			coercion: toBoolean
+		}, {
+			org: 'tars-monitor-http-threshold',
+			coercion: aliveParse
+		}, {
+			org: 'tars-monitor-http-seppath',
+			coercion: toBoolean
+		}, {
+			org: 'tars-monitor-http-socketerr',
+			coercion: toBoolean
+		}, {
+			org: 'long-stack',
+			coercion: toBoolean
+		}, {
+			org: 'long-stack-filter-usercode',
+			coercion: toBoolean
+		}].forEach(function (item) {
+			//若指定了domain，从指定domain读取， 若没有，从 <server>配置节读取，有org的配置项，以org作为key读value，否则以item本身的值作为key去读取
+			//这里并不会赋予默认值，写私有模板时一定要写对应的值，否则无效，比如 run-as-user=1
+			var value = (serverObj[item.domain || 'server'] || {})[item.org || item];
+			if (value) {
+				opts[convert.camelcase(item.dest || item.org || item)] = item.coercion ? item.coercion(value) : value;
+			}
+		});
 	
+	opts['name'] = TarsConfig.get('tars.application.server.app', constants.TARS_DEFAULT_APP) + '.' + TarsConfig.get('tars.application.server.server', path.basename(script, path.extname(script)));
+
 	if (serverObj['server']) {
-		Object.getOwnPropertyNames(serverObj['server']).some(function(key) {
+
+		 // 读取非tars协议时的配置，将httpAddress加入到opts中， 如：
+		//  'Hello.HelloHttpServer.HelloHttpObjAdapter': {
+		// 		allow: undefined,
+		// 		endpoint: 'tcp -h 192.168.10.4 -p 3032 -t 60000',
+		// 		handlegroup: 'Hello.HelloHttpServer.HelloHttpObjAdapter',
+		// 		maxconns: '100000',
+		// 		protocol: 'not_tars',
+		// 		queuecap: '50000',
+		// 		queuetimeout: '20000',
+		// 		servant: 'Hello.HelloHttpServer.HelloHttpObj',
+		// 		threads: '5'
+		//   }
+
+		Object.getOwnPropertyNames(serverObj['server']).some(function (key) {
 			if (serverObj['server'][key] && typeof serverObj['server'][key] === 'object' && serverObj['server'][key].protocol === 'not_tars') {
 				opts[convert.camelcase('http-address')] = serverObj['server'][key].endpoint.match(/\-h\s([^\s]+)/)[1] + ':' + serverObj['server'][key].endpoint.match(/\-p\s([^\s]+)/)[1];
 				return true;
@@ -187,7 +209,8 @@ var parseConfig = function(script, file) {
 	return opts;
 };
 
-var parsePackage = function(file) {
+//用来读取package.json中的nodeAgent，作为配置对象
+var parsePackage = function (file) {
 	if (!scriptPkg) {
 		scriptPkg = require(file);
 	}
@@ -200,12 +223,13 @@ var parsePackage = function(file) {
 
 	return scriptPkg.nodeAgent;
 };
-
-var error = function(str, code) {
+//终端中染色，红色的error信息输出
+var error = function (str, code) {
 	console.error(chalk.red(str));
 	process.exit(code || 0);
 };
 
+//commander 方式启动，读取驼峰属性到options中，如 --http-address读取为 opts.httpAddress
 commander
 	.version(pkg.version)
 	.option('-c, --config <config>', 'specify tars config file. NOTE: independent config will be override this')
@@ -238,32 +262,36 @@ commander
 	.parse(process.argv);
 
 if (process.argv.length == 2) {
-  commander.parse(process.argv);
-  commander.outputHelp();
-  process.exit(0);
+	commander.parse(process.argv);
+	commander.outputHelp();
+	process.exit(0);
 }
-
+//commander.args存储未被commander解析的内容，一般这里args[0]就是入口js文件名或者入口目录
 if (!commander.args[0]) {
 	error('>> The script is NOT specified.');
 	return;
 }
 
 var scriptStat, scriptPkg, entrypoint, configOpt;
-
+//判断入口js文件/入口路径是否存在
 try {
 	scriptStat = fs.statSync(commander.args[0]);
-} catch(e) {
+} catch (e) {
 	error('>> Can NOT find the script or directory');
 	return;
 }
-
+//如果入口内容存在，且是个js文件，则直接以此为入口点
 if (scriptStat.isFile() && path.extname(commander.args[0]).toLowerCase() === '.js') {
 	entrypoint = path.resolve(commander.args[0]);
 } else if (scriptStat.isDirectory()) {
+	//如果入口点是个目录，则寻找package.json，按下面顺序寻找入口点：
+	//1. nodeAgent.main指定的文件
+	//2. scripts.start指定的，仅以node打头的内容，如： node app.js，则取此app.js为入口点
+	//3. package.json中指定的main文件
 	if (existsSync(path.resolve(commander.args[0], 'package.json'))) {
 		try {
 			scriptPkg = require(path.resolve(commander.args[0], 'package.json'));
-		} catch(e) {}
+		} catch (e) { }
 
 		if (scriptPkg && scriptPkg.nodeAgent && scriptPkg.nodeAgent.main) {
 			entrypoint = path.resolve(commander.args[0], scriptPkg.nodeAgent.main);
@@ -273,9 +301,9 @@ if (scriptStat.isFile() && path.extname(commander.args[0]).toLowerCase() === '.j
 			entrypoint = path.resolve(commander.args[0], scriptPkg.main);
 		}
 	}
-
+	//如果通过目录下package.json没有找到入口点，则在此目录下依次寻找 'server.js', 'app.js', 'start.js', 'index.js'，找到任意一个则作为入口点
 	if (!entrypoint) {
-		constants.ENTRY_POINT_NAME.some(function(name) {
+		constants.ENTRY_POINT_NAME.some(function (name) {
 			if (existsSync(path.resolve(commander.args[0], name))) {
 				entrypoint = path.resolve(commander.args[0], name);
 				return true;
@@ -284,40 +312,45 @@ if (scriptStat.isFile() && path.extname(commander.args[0]).toLowerCase() === '.j
 			}
 		});
 	}
-
+	//入口还没找到，则报错
 	if (!entrypoint) {
 		error('>> Can NOT find the entry point in the directory');
 		return;
 	}
 } else {
+	//既不是js文件，也不是目录，则报错，所以这里要注意，指定文件运行时，只能指定js文件
 	error('>> The script is neither a file nor a directory');
 	return;
 }
-
+//再次校验入口文件是否存在（从package.json中配置的文件还没校验，这里再校验一次）
 if (!existsSync(entrypoint)) {
 	error(util.format('>> Can NOT find the entrypoint(%s) in the file system', entrypoint));
 	return;
 }
 
+//如果指定了tars模板配置文件，从模板配置中解析node-agent选项
 if (commander.config) {
 	try {
 		configOpt = parseConfig(commander.args[0], commander.config);
-	} catch(e) {
+	} catch (e) {
 		error(chalk.red('>> Reading the config file failed.'));
 		return;
 	}
-} else if (existsSync(path.join(path.dirname(entrypoint), 'package.json'))) {
+} 
+//如果没有指定tars模板配置文件，有package.json，则取package.json中的nodeAgent对象作为node-agent选项
+else if (existsSync(path.join(path.dirname(entrypoint), 'package.json'))) {
 	try {
 		configOpt = parsePackage(path.join(path.dirname(entrypoint), 'package.json'));
-	} catch(e) {}
+	} catch (e) { }
 }
 
+//如果有配置文件，则将opts的值赋给commander，以commander从命令行中读取的值优先
 if (configOpt) {
-	Object.getOwnPropertyNames(configOpt).forEach(function(key) {
+	Object.getOwnPropertyNames(configOpt).forEach(function (key) {
 		if (!commander[key] || typeof commander[key] === 'function') {
 			commander[key] = configOpt[key];
 		}
 	});
 }
-
+//传入入口点文件和选项，启动应用
 CLI.start(entrypoint, commander);
